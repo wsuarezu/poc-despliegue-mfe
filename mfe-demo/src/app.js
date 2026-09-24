@@ -1,5 +1,5 @@
 const VERSION = '__VERSION__';
-const NOVEDAD = 'Primera versión publicada.';
+const NOVEDAD = 'Segunda versión: cambié el texto.';
 
 let nodoActual = null;
 let temporizadorReloj = null;
