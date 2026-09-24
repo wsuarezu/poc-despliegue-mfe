@@ -1,0 +1,10 @@
+{
+  "name": "mfe-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/start.mjs"
+  }
+}

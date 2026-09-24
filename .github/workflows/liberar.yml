@@ -1,0 +1,68 @@
+name: Liberar versión (o revertir)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versión que debe usar el shell (ej. 1.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  liberar:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Validar el formato de la versión
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::'$VERSION' no tiene el formato X.Y.Z"
+            exit 1
+          fi
+
+      - name: Traer lo ya publicado
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: sitio
+
+      - name: Verificar que la versión fue desplegada antes
+        run: |
+          if [ ! -f "sitio/mfe/demo/$VERSION/app.js" ]; then
+            echo "::error::La versión $VERSION no está desplegada. Versiones disponibles:"
+            ls sitio/mfe/demo/ || true
+            exit 1
+          fi
+
+      - name: Actualizar el manifiesto
+        run: |
+          mkdir -p salida
+          MANIFIESTO_ACTUAL="sitio/manifiesto.json"
+          if [ ! -f "$MANIFIESTO_ACTUAL" ]; then
+            echo '{"mfes":{}}' > "$MANIFIESTO_ACTUAL"
+          fi
+          echo "Antes:"; cat "$MANIFIESTO_ACTUAL"
+          jq --arg version "$VERSION" --arg fecha "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '.mfes.demo = {version: $version, url: ("mfe/demo/" + $version + "/app.js")} | .actualizado = $fecha' \
+            "$MANIFIESTO_ACTUAL" > salida/manifiesto.json
+          echo "Después:"; cat salida/manifiesto.json
+
+      - name: Publicar el manifiesto
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./salida
+          keep_files: true
+          commit_message: 'manifiesto: demo -> ${{ inputs.version }}'
+
+      - name: Resumen
+        run: |
+          echo "### El shell ahora usa demo v$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "No se compiló nada: solo cambió una línea del manifiesto." >> "$GITHUB_STEP_SUMMARY"

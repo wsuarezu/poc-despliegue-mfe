@@ -1,0 +1,67 @@
+name: Publicar MFE (desplegar)
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verificar que la etiqueta coincide con package.json
+        working-directory: mfe-demo
+        run: |
+          VERSION_ETIQUETA="${GITHUB_REF_NAME#v}"
+          VERSION_PAQUETE="$(node -p "require('./package.json').version")"
+          echo "Etiqueta: $VERSION_ETIQUETA · package.json: $VERSION_PAQUETE"
+          if [ "$VERSION_ETIQUETA" != "$VERSION_PAQUETE" ]; then
+            echo "::error::La etiqueta v$VERSION_ETIQUETA no coincide con la versión de package.json ($VERSION_PAQUETE)."
+            exit 1
+          fi
+          echo "VERSION=$VERSION_PAQUETE" >> "$GITHUB_ENV"
+
+      - name: Traer lo ya publicado
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: sitio
+
+      - name: Verificar que la versión no exista ya (las versiones no se sobrescriben)
+        run: |
+          if [ -d "sitio/mfe/demo/$VERSION" ]; then
+            echo "::error::La versión $VERSION ya está publicada. Sube la versión en package.json."
+            exit 1
+          fi
+
+      - name: Compilar
+        working-directory: mfe-demo
+        run: npm run build
+
+      - name: Subir la versión a gh-pages/mfe/demo/<versión>
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./mfe-demo/dist
+          destination_dir: mfe/demo/${{ env.VERSION }}
+          keep_files: true
+          commit_message: 'mfe-demo: desplegar ${{ env.VERSION }}'
+
+      - name: Resumen
+        run: |
+          echo "### Desplegada la versión $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "Los archivos ya están en el servidor, pero **nadie la usa todavía**." >> "$GITHUB_STEP_SUMMARY"
+          echo "Para liberarla, ejecuta el workflow **Liberar versión** con \`$VERSION\`." >> "$GITHUB_STEP_SUMMARY"
